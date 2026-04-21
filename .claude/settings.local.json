@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(xargs wc *)",
+      "Bash(go mod *)",
+      "Bash(powershell.exe *)",
+      "Bash(npm --version)",
+      "Bash(winget --version)",
+      "Bash(choco --version)",
+      "Bash(scoop --version)",
+      "Bash(npm install *)",
+      "Bash(npm show *)",
+      "Bash(grep -E \"\\\\.\\(sql|go\\)$\")",
+      "Bash(npx tsc *)",
+      "Bash(docker compose *)",
+      "Bash(go run *)",
+      "Bash(go build *)",
+      "Bash(npm run *)",
+      "Bash(go get *)",
+      "Bash(go env *)",
+      "Bash(where claude *)",
+      "Bash(claude --version)",
+      "Bash(claude -p \"say hi back in one word\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(xargs grep *)",
+      "Bash(xargs ls *)",
+      "Bash(npm list *)",
+      "Bash(go vet *)"
+    ]
+  }
+}

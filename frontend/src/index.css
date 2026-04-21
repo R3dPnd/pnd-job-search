@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-950 text-gray-100 antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-gray-900;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-700 rounded;
+}
+
+.resume-preview h1, .resume-preview h2, .resume-preview h3 {
+  @apply font-semibold text-gray-100 mt-3 mb-1;
+}
+.resume-preview h1 { @apply text-lg; }
+.resume-preview h2 { @apply text-base border-b border-gray-700 pb-0.5; }
+.resume-preview h3 { @apply text-sm; }
+.resume-preview p  { @apply text-sm text-gray-300 leading-relaxed mb-1; }
+.resume-preview ul, .resume-preview ol { @apply pl-4 mb-1; }
+.resume-preview li { @apply text-sm text-gray-300 leading-relaxed list-disc; }
+.resume-preview strong { @apply text-gray-100 font-semibold; }
+.resume-preview em { @apply italic text-gray-300; }
