@@ -11,6 +11,14 @@ type PipelineStage struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type FitResult struct {
+	MatchScore  int      `json:"match_score"`
+	Strengths   []string `json:"strengths"`
+	Gaps        []string `json:"gaps"`
+	Suggestions []string `json:"suggestions"`
+	Summary     string   `json:"summary"`
+}
+
 type Application struct {
 	ID              string         `json:"id"`
 	Company         string         `json:"company"`
@@ -24,6 +32,8 @@ type Application struct {
 	Status          string         `json:"status"`
 	ResumeID        *string        `json:"resume_id"`
 	CoverLetter     *string        `json:"cover_letter"`
+	FitResult       *FitResult     `json:"fit_result,omitempty"`
+	FitAnalyzedAt   *time.Time     `json:"fit_analyzed_at,omitempty"`
 	Stages          []PipelineStage `json:"stages,omitempty"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
@@ -73,7 +83,7 @@ type InterviewQuestion struct {
 	Difficulty    *string           `json:"difficulty"`
 	GeneratedBy   string            `json:"generated_by"`
 	CreatedAt     time.Time         `json:"created_at"`
-	Answers       []InterviewAnswer `json:"answers,omitempty"`
+	Answers       []InterviewAnswer `json:"answers"`
 }
 
 type InterviewAnswer struct {

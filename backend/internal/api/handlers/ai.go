@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -163,6 +164,17 @@ func (a *App) CompareResumeToApplication(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	if fitJSON, merr := json.Marshal(result); merr == nil {
+		now := time.Now()
+		_, _ = a.DB.Exec(r.Context(), `
+			UPDATE job_applications
+			SET fit_result = $1::jsonb, fit_analyzed_at = $2, updated_at = $3
+			WHERE id = $4`,
+			string(fitJSON), now, now, appID,
+		)
+	}
+
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -330,6 +342,12 @@ func (a *App) GenerateCoverLetter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	now := time.Now()
+	_, _ = a.DB.Exec(r.Context(), `
+		UPDATE job_applications SET cover_letter = $1, updated_at = $2 WHERE id = $3`,
+		coverLetter, now, body.ApplicationID,
+	)
 
 	writeJSON(w, http.StatusOK, map[string]any{"cover_letter": coverLetter})
 }

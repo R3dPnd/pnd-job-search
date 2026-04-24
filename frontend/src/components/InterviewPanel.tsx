@@ -24,16 +24,18 @@ export default function InterviewPanel({ application }: Props) {
   const [questions, setQuestions] = useState<InterviewQuestion[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
   const [genTypes, setGenTypes] = useState<string[]>(['behavioral', 'technical', 'situational', 'coding'])
   const [genCount, setGenCount] = useState(5)
   const [typeFilter, setTypeFilter] = useState('')
 
   useEffect(() => {
-    getQuestions(application.id).then((r) => setQuestions(r.questions))
+    getQuestions(application.id).then((r) => setQuestions(r.questions)).catch(() => {})
   }, [application.id])
 
   const handleGenerate = async () => {
     setGenerating(true)
+    setGenError(null)
     try {
       const result = await generateQuestions({
         application_id: application.id,
@@ -41,24 +43,30 @@ export default function InterviewPanel({ application }: Props) {
         count: genCount,
       })
       setQuestions((prev) => [...prev, ...result.questions])
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
       setGenerating(false)
     }
   }
 
   const handleDelete = async (qId: string) => {
-    await deleteQuestion(application.id, qId)
-    setQuestions((prev) => prev.filter((q) => q.id !== qId))
-    if (expandedId === qId) setExpandedId(null)
+    try {
+      await deleteQuestion(application.id, qId)
+      setQuestions((prev) => prev.filter((q) => q.id !== qId))
+      if (expandedId === qId) setExpandedId(null)
+    } catch {
+      // ignore delete errors
+    }
   }
 
   const handleAnswerChange = (questionId: string, answer: InterviewAnswer) => {
     setQuestions((prev) =>
       prev.map((q) =>
         q.id === questionId
-          ? { ...q, answers: q.answers.some((a) => a.id === answer.id)
-              ? q.answers.map((a) => (a.id === answer.id ? answer : a))
-              : [...q.answers, answer] }
+          ? { ...q, answers: (q.answers ?? []).some((a) => a.id === answer.id)
+              ? (q.answers ?? []).map((a) => (a.id === answer.id ? answer : a))
+              : [...(q.answers ?? []), answer] }
           : q
       )
     )
@@ -110,6 +118,7 @@ export default function InterviewPanel({ application }: Props) {
             {generating ? 'Generating…' : 'Generate with AI'}
           </button>
         </div>
+        {genError && <p className="text-xs text-red-400">{genError}</p>}
       </div>
 
       {/* Filter */}
@@ -171,7 +180,7 @@ export default function InterviewPanel({ application }: Props) {
               onClick={() => setExpandedId(expandedId === q.id ? null : q.id)}
               className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
             >
-              {expandedId === q.id ? '▲ Hide answer' : `▼ ${q.answers.length > 0 ? 'Edit' : 'Add'} answer`}
+              {expandedId === q.id ? '▲ Hide answer' : `▼ ${(q.answers ?? []).length > 0 ? 'Edit' : 'Add'} answer`}
             </button>
 
             {expandedId === q.id && (

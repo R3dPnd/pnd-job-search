@@ -27,7 +27,7 @@ export default function ApplicationsPage() {
   // Load full detail when selection changes
   useEffect(() => {
     if (!selectedApplicationId) { setDetail(null); return }
-    getApplication(selectedApplicationId).then(setDetail)
+    getApplication(selectedApplicationId).then(setDetail).catch(() => setDetail(null))
   }, [selectedApplicationId])
 
   const filtered = applications.filter((a) => {

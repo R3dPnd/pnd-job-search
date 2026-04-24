@@ -12,7 +12,7 @@ export default function ResumeFitPanel({ application, onUpdate }: Props) {
   const { resumes } = useJobSearchStore()
   const [selectedResumeId, setSelectedResumeId] = useState<string>(application.resume_id ?? '')
   const [linking, setLinking] = useState(false)
-  const [compare, setCompare] = useState<CompareResult | null>(null)
+  const [compare, setCompare] = useState<CompareResult | null>(application.fit_result ?? null)
   const [loadingCompare, setLoadingCompare] = useState(false)
 
   const linkedResume = resumes.find((r) => r.id === application.resume_id)
@@ -36,10 +36,23 @@ export default function ResumeFitPanel({ application, onUpdate }: Props) {
     try {
       const result = await compareResumeToApplication(application.id, application.resume_id)
       setCompare(result)
+      onUpdate({
+        ...application,
+        fit_result: result,
+        fit_analyzed_at: new Date().toISOString(),
+      })
     } finally {
       setLoadingCompare(false)
     }
   }
+
+  const analyzedAt = application.fit_analyzed_at
+    ? new Date(application.fit_analyzed_at).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null
 
   return (
     <div className="p-4 flex flex-col gap-4 overflow-y-auto h-full">
@@ -54,7 +67,7 @@ export default function ResumeFitPanel({ application, onUpdate }: Props) {
             <select
               value={selectedResumeId}
               onChange={(e) => setSelectedResumeId(e.target.value)}
-              className="flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500"
+              className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="">— select a resume —</option>
               {resumes.map((r) => (
@@ -83,14 +96,19 @@ export default function ResumeFitPanel({ application, onUpdate }: Props) {
       {/* Compare */}
       <div className="bg-gray-800/50 border border-gray-700 rounded p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-300">Resume Fit Analysis</h3>
+          <div className="flex flex-col gap-0.5">
+            <h3 className="text-sm font-semibold text-gray-300">Resume Fit Analysis</h3>
+            {analyzedAt && (
+              <span className="text-xs text-gray-500">Last analyzed {analyzedAt}</span>
+            )}
+          </div>
           <button
             onClick={handleCompare}
             disabled={loadingCompare || !application.resume_id || !hasJD}
             title={!hasJD ? 'Add a job description to this application first' : !application.resume_id ? 'Link a resume first' : ''}
             className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-1.5 rounded transition-colors"
           >
-            {loadingCompare ? 'Analyzing…' : 'Compare with AI'}
+            {loadingCompare ? 'Analyzing…' : compare ? 'Re-analyze' : 'Analyze with AI'}
           </button>
         </div>
 

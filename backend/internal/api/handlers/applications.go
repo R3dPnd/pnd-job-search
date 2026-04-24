@@ -3,6 +3,7 @@ package handlers
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -65,11 +66,13 @@ func (a *App) GetApplication(w http.ResponseWriter, r *http.Request) {
 	var app models.Application
 	var stageID, stageName, stageColor *string
 	var stageOrder *int
+	var fitResultStr *string
 	err := a.DB.QueryRow(r.Context(), `
 		SELECT
 			ja.id::text, ja.company, ja.role, ja.job_description, ja.job_url, ja.source,
 			ja.current_stage_id::text, ja.date_applied, ja.status, ja.resume_id::text,
-			ja.cover_letter, ja.created_at, ja.updated_at,
+			ja.cover_letter, ja.fit_result::text, ja.fit_analyzed_at,
+			ja.created_at, ja.updated_at,
 			ps.id::text, ps.name, ps.color, ps.order_index
 		FROM job_applications ja
 		LEFT JOIN pipeline_stages ps ON ps.id = ja.current_stage_id
@@ -77,12 +80,19 @@ func (a *App) GetApplication(w http.ResponseWriter, r *http.Request) {
 	).Scan(
 		&app.ID, &app.Company, &app.Role, &app.JobDescription, &app.JobURL, &app.Source,
 		&app.CurrentStageID, &app.DateApplied, &app.Status, &app.ResumeID,
-		&app.CoverLetter, &app.CreatedAt, &app.UpdatedAt,
+		&app.CoverLetter, &fitResultStr, &app.FitAnalyzedAt,
+		&app.CreatedAt, &app.UpdatedAt,
 		&stageID, &stageName, &stageColor, &stageOrder,
 	)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "application not found")
 		return
+	}
+	if fitResultStr != nil && *fitResultStr != "" {
+		var fr models.FitResult
+		if json.Unmarshal([]byte(*fitResultStr), &fr) == nil {
+			app.FitResult = &fr
+		}
 	}
 	if stageID != nil {
 		app.CurrentStage = &models.PipelineStage{

@@ -20,6 +20,8 @@ export interface Application {
   status: 'active' | 'archived' | 'rejected' | 'offer'
   resume_id: string | null
   cover_letter: string | null
+  fit_result: CompareResult | null
+  fit_analyzed_at: string | null
   stages: PipelineStage[]
   created_at: string
   updated_at: string

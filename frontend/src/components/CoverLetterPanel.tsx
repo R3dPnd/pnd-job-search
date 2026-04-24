@@ -25,7 +25,9 @@ export default function CoverLetterPanel({ application, onUpdate }: Props) {
     try {
       const { cover_letter } = await generateCoverLetter(application.id, companyInfo || undefined)
       setText(cover_letter)
-      setSaved(false)
+      // backend auto-saves on generation — update parent state to reflect this
+      onUpdate({ ...application, cover_letter })
+      setSaved(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {

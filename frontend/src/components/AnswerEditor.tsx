@@ -22,18 +22,21 @@ interface Props {
 }
 
 export default function AnswerEditor({ question, application, onAnswerChange }: Props) {
-  const existing = question.answers[0] ?? null
+  const existing = question.answers?.[0] ?? null
   const [content, setContent] = useState(existing?.content ?? '')
   const [codeContent, setCodeContent] = useState(existing?.code_content ?? '')
   const [language, setLanguage] = useState(existing?.language ?? 'javascript')
   const [answer, setAnswer] = useState<InterviewAnswer | null>(existing)
   const [loading, setLoading] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   const isCoding = question.type === 'coding'
 
   const handleSave = async () => {
     setLoading(true)
+    setSaveError(null)
     try {
       let saved: InterviewAnswer
       if (answer) {
@@ -51,6 +54,8 @@ export default function AnswerEditor({ question, application, onAnswerChange }: 
       }
       setAnswer(saved)
       onAnswerChange(question.id, saved)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setLoading(false)
     }
@@ -59,10 +64,13 @@ export default function AnswerEditor({ question, application, onAnswerChange }: 
   const handleGetFeedback = async () => {
     if (!answer) return
     setFeedbackLoading(true)
+    setFeedbackError(null)
     try {
       const updated = await getAnswerFeedback(answer.id)
       setAnswer(updated)
       onAnswerChange(question.id, updated)
+    } catch (e) {
+      setFeedbackError(e instanceof Error ? e.message : 'Feedback failed')
     } finally {
       setFeedbackLoading(false)
     }
@@ -125,6 +133,8 @@ export default function AnswerEditor({ question, application, onAnswerChange }: 
         )}
       </div>
 
+      {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+      {feedbackError && <p className="text-xs text-red-400">{feedbackError}</p>}
       {answer && <AIFeedbackPanel answer={answer} />}
     </div>
   )
