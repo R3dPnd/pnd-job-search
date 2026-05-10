@@ -235,7 +235,7 @@ func (a *App) EditResume(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"edits": edits})
 }
 
-func (a *App) JobResumeEdits(w http.ResponseWriter, r *http.Request) {
+func (a *App) ClarifyingQuestions(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ApplicationID string `json:"application_id"`
 	}
@@ -280,7 +280,62 @@ func (a *App) JobResumeEdits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	edits, err := a.AI.SuggestJobTargetedEdits(r.Context(), *rawText, *jobDesc, company, role)
+	questions, err := a.AI.GenerateClarifyingQuestions(r.Context(), *rawText, *jobDesc, company, role)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"questions": questions})
+}
+
+func (a *App) JobResumeEdits(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ApplicationID string `json:"application_id"`
+		UserContext   string `json:"user_context"`
+	}
+	if err := decode(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.ApplicationID == "" {
+		writeError(w, http.StatusBadRequest, "application_id is required")
+		return
+	}
+
+	var company, role string
+	var jobDesc *string
+	err := a.DB.QueryRow(r.Context(),
+		`SELECT company, role, job_description FROM job_applications WHERE id = $1`,
+		body.ApplicationID,
+	).Scan(&company, &role, &jobDesc)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "application not found")
+		return
+	}
+	if jobDesc == nil || *jobDesc == "" {
+		writeError(w, http.StatusBadRequest, "application must have a job description")
+		return
+	}
+
+	var rawText *string
+	err = a.DB.QueryRow(r.Context(), `
+		SELECT r.raw_text FROM resumes r
+		JOIN job_applications ja ON ja.resume_id = r.id
+		WHERE ja.id = $1 AND r.raw_text IS NOT NULL AND r.raw_text != ''`,
+		body.ApplicationID,
+	).Scan(&rawText)
+	if err != nil {
+		err = a.DB.QueryRow(r.Context(),
+			`SELECT raw_text FROM resumes WHERE is_active = true AND raw_text IS NOT NULL AND raw_text != '' LIMIT 1`,
+		).Scan(&rawText)
+	}
+	if err != nil || rawText == nil || *rawText == "" {
+		writeError(w, http.StatusBadRequest, "no resume with extracted text found — upload and activate a resume first")
+		return
+	}
+
+	edits, err := a.AI.SuggestJobTargetedEdits(r.Context(), *rawText, *jobDesc, company, role, body.UserContext)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -293,6 +348,7 @@ func (a *App) GenerateCoverLetter(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ApplicationID string `json:"application_id"`
 		CompanyInfo   string `json:"company_info"`
+		UserContext   string `json:"user_context"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -337,7 +393,7 @@ func (a *App) GenerateCoverLetter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coverLetter, err := a.AI.GenerateCoverLetter(r.Context(), company, role, *jobDesc, *rawText, body.CompanyInfo)
+	coverLetter, err := a.AI.GenerateCoverLetter(r.Context(), company, role, *jobDesc, *rawText, body.CompanyInfo, body.UserContext)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

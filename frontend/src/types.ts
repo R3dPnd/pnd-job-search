@@ -117,4 +117,10 @@ export interface ResumeEdit {
   reason: string
 }
 
+export interface ClarifyingQuestion {
+  id: string
+  question: string
+  context: string
+}
+
 export type Tab = 'dashboard' | 'applications' | 'resume' | 'discover' | 'sessions'

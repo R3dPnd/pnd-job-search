@@ -297,13 +297,19 @@ Return ONLY the JSON array, no other text.`, resumeText)
 	return edits, nil
 }
 
-// --- Job-Targeted Resume Edit Suggestions ---
+// --- Clarifying Questions ---
 
-func (s *AIService) SuggestJobTargetedEdits(
+type ClarifyingQuestion struct {
+	ID       string `json:"id"`
+	Question string `json:"question"`
+	Context  string `json:"context"`
+}
+
+func (s *AIService) GenerateClarifyingQuestions(
 	ctx context.Context,
 	resumeText, jobDescription, company, role string,
-) ([]*ResumeEdit, error) {
-	prompt := fmt.Sprintf(`You are an expert resume editor and career coach. Suggest 6-10 specific, concrete edits to tailor this resume for the target role.
+) ([]ClarifyingQuestion, error) {
+	prompt := fmt.Sprintf(`You are a resume consultant preparing to tailor a resume for a job application. Before making any edits, you need to ask the applicant targeted questions to gather additional accurate details — NOT to fill in skills they don't have, but to surface real experience they may not have fully documented.
 
 TARGET ROLE: %s at %s
 
@@ -313,12 +319,68 @@ JOB DESCRIPTION:
 RESUME:
 %s
 
-Instructions:
-1. Identify the most important keywords, skills, and requirements from the job description
-2. Compare against the resume and find gaps or missed opportunities
-3. Suggest specific rewrites — bullet points, section reorders, added keywords, rephrased accomplishments — tied directly to the job description language
-4. Every edit must be directly tied to a requirement or keyword from the job description
-5. Do not give generic advice
+Generate 3-5 targeted questions that will help you write more accurate, detailed resume edits and a cover letter. Focus on:
+- Specific technologies, tools, or methodologies used in past roles that may align with job requirements but aren't fully detailed in the resume
+- Quantifiable outcomes (metrics, scale, impact) for achievements that are vague or missing numbers
+- Projects or responsibilities that could be described more precisely to match job description language
+- Do NOT ask about skills or experience the applicant clearly does not have
+
+Return a JSON array with this exact shape:
+[
+  {
+    "id": "q_1",
+    "question": "The question to ask the applicant",
+    "context": "One sentence explaining why this detail would help — which job requirement it relates to"
+  }
+]
+
+Return ONLY the JSON array, no other text.`,
+		role, company, jobDescription, resumeText)
+
+	raw, err := s.complete(ctx, "You are a professional resume consultant gathering accurate details from an applicant.", prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	raw = extractJSON(raw)
+	var questions []ClarifyingQuestion
+	if err := json.Unmarshal([]byte(raw), &questions); err != nil {
+		return nil, fmt.Errorf("failed to parse AI response: %w\nraw: %s", err, raw)
+	}
+	return questions, nil
+}
+
+// --- Job-Targeted Resume Edit Suggestions ---
+
+func (s *AIService) SuggestJobTargetedEdits(
+	ctx context.Context,
+	resumeText, jobDescription, company, role, userContext string,
+) ([]*ResumeEdit, error) {
+	additionalContext := ""
+	if userContext != "" {
+		additionalContext = fmt.Sprintf(`
+ADDITIONAL CONTEXT FROM APPLICANT:
+The applicant answered clarifying questions. Treat these answers as verified facts you may use in edits.
+%s
+`, userContext)
+	}
+
+	prompt := fmt.Sprintf(`You are a professional resume editor tailoring a resume for a specific job. Your job is to suggest edits using ONLY the information actually present in the resume and any additional context the applicant has provided below.
+
+TARGET ROLE: %s at %s
+
+JOB DESCRIPTION:
+%s
+
+RESUME:
+%s
+%s
+Rules you MUST follow:
+1. Only use facts, roles, and achievements from the resume or the applicant's additional context above. Do not invent or exaggerate anything.
+2. You MAY rephrase existing content using industry-relevant keywords from the job description — but only when those keywords accurately describe what the applicant actually did.
+3. If the job description requires a skill or experience not present in the resume or applicant context, do NOT add it. Instead, use the reason field to flag it: "GAP: [skill] — not present in resume."
+4. Preserve all dates, titles, company names, and measurable results exactly as provided.
+5. Do not use vague filler phrases ("results-driven", "passionate about", "team player") unless grounded in a specific example already in the resume.
 
 Return a JSON array with this exact shape:
 [
@@ -326,18 +388,18 @@ Return a JSON array with this exact shape:
     "id": "edit_1",
     "section": "Experience",
     "original": "exact verbatim text copied from the resume",
-    "replacement": "improved version targeting the job description",
-    "reason": "one line explaining why this strengthens fit for this specific role"
+    "replacement": "rephrased version using job description language — based only on what is actually in the resume or applicant context",
+    "reason": "one line noting what original content this is based on and why the rephrasing strengthens fit"
   }
 ]
 
-Rules:
+Additional rules:
 - The "original" field MUST be an exact verbatim copy from the resume (same spacing, punctuation, capitalization)
-- Each reason must reference specific language or requirements from the job description
+- For GAP flags, set "original" and "replacement" to empty strings
 - Keep each original/replacement pair to a single sentence or bullet point
 
 Return ONLY the JSON array, no other text.`,
-		role, company, jobDescription, resumeText)
+		role, company, jobDescription, resumeText, additionalContext)
 
 	raw, err := s.complete(ctx, "You are an expert resume editor and career coach.", prompt)
 	if err != nil {
@@ -356,14 +418,23 @@ Return ONLY the JSON array, no other text.`,
 
 func (s *AIService) GenerateCoverLetter(
 	ctx context.Context,
-	company, role, jobDescription, resumeText, companyInfo string,
+	company, role, jobDescription, resumeText, companyInfo, userContext string,
 ) (string, error) {
 	companyContext := "(no additional company context provided)"
 	if companyInfo != "" {
 		companyContext = companyInfo
 	}
 
-	prompt := fmt.Sprintf(`Write a compelling, personalized cover letter for this job application.
+	additionalContext := ""
+	if userContext != "" {
+		additionalContext = fmt.Sprintf(`
+ADDITIONAL CONTEXT FROM APPLICANT:
+The applicant answered clarifying questions. Treat these answers as verified facts you may reference in the letter.
+%s
+`, userContext)
+	}
+
+	prompt := fmt.Sprintf(`You are a professional cover letter writer. Write a cover letter grounded STRICTLY in the applicant's actual experience. You must never invent, fabricate, or imply experience, skills, or accomplishments not explicitly stated in the resume or the applicant's additional context below.
 
 APPLICANT RESUME:
 %s
@@ -376,21 +447,27 @@ JOB DESCRIPTION:
 
 ADDITIONAL COMPANY CONTEXT:
 %s
+%s
+Rules you MUST follow:
+1. Only reference facts, roles, and achievements from the resume or the applicant's additional context above. Do not add, invent, or exaggerate anything.
+2. You MAY rephrase existing content using industry-relevant keywords from the job description — but only when those keywords accurately describe what the applicant actually did.
+3. If the job description requires a skill or experience not present in the resume or applicant context, do NOT imply the applicant has it. Omit it entirely.
+4. Preserve all titles, company names, and measurable results exactly as provided.
+5. Do not use vague filler phrases ("results-driven", "passionate about", "team player") unless grounded in a specific example from the resume.
 
-Requirements:
-1. Open with a strong, specific hook referencing the company or role — never a generic opener
-2. Connect 2-3 of the applicant's most relevant experiences or skills directly to the job's key requirements
+Writing requirements:
+1. Open with a specific hook referencing the company or role — never a generic opener
+2. Connect 2-3 of the applicant's most relevant actual experiences directly to the job's key requirements
 3. Demonstrate genuine interest in the company using the provided context
 4. Close with a confident, action-oriented statement
 5. Length: 3-4 paragraphs, no longer than 400 words
 6. Tone: Professional but human — avoid buzzwords and corporate clichés
 7. Write in first person from the applicant's perspective
-8. Do not simply restate the resume; synthesize and tell a story
 
 Return ONLY the cover letter text, ready to send. No preamble, no commentary.`,
-		resumeText, company, role, jobDescription, companyContext)
+		resumeText, company, role, jobDescription, companyContext, additionalContext)
 
-	return s.complete(ctx, "You are an expert cover letter writer who crafts compelling, personalized letters that stand out.", prompt)
+	return s.complete(ctx, "You are a professional cover letter writer who only uses facts explicitly present in the applicant's resume — never fabricating or implying experience.", prompt)
 }
 
 // extractJSON strips markdown code fences that models sometimes add.

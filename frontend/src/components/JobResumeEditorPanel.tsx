@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { getJobResumeEdits, saveResumeVersion, getResume, getResumes } from '../lib/api'
-import type { Application, ResumeEdit, Resume } from '../types'
+import { getClarifyingQuestions, getJobResumeEdits, saveResumeVersion, getResume, getResumes } from '../lib/api'
+import type { Application, ClarifyingQuestion, ResumeEdit, Resume } from '../types'
 
 interface Props {
   application: Application
@@ -12,7 +12,9 @@ type Decision = 'accept' | 'reject' | 'pending'
 
 type Phase =
   | { type: 'idle' }
-  | { type: 'loading' }
+  | { type: 'loading_questions' }
+  | { type: 'questioning'; questions: ClarifyingQuestion[]; answers: Record<string, string> }
+  | { type: 'loading_analysis' }
   | { type: 'reviewing'; edits: ResumeEdit[]; decisions: Record<string, Decision> }
   | { type: 'saving' }
   | { type: 'error'; message: string }
@@ -26,9 +28,25 @@ export default function JobResumeEditorPanel({ application, resumes, onVersionSa
 
   const handleAnalyze = async () => {
     if (!application.job_description) return
-    setPhase({ type: 'loading' })
+    setPhase({ type: 'loading_questions' })
     try {
-      const { edits } = await getJobResumeEdits(application.id)
+      const { questions } = await getClarifyingQuestions(application.id)
+      const answers: Record<string, string> = {}
+      questions.forEach((q) => { answers[q.id] = '' })
+      setPhase({ type: 'questioning', questions, answers })
+    } catch (e) {
+      setPhase({ type: 'error', message: e instanceof Error ? e.message : 'Failed to load questions' })
+    }
+  }
+
+  const handleContinueWithAnswers = async (questions: ClarifyingQuestion[], answers: Record<string, string>) => {
+    setPhase({ type: 'loading_analysis' })
+    const userContext = questions
+      .filter((q) => answers[q.id]?.trim())
+      .map((q) => `Q: ${q.question}\nA: ${answers[q.id].trim()}`)
+      .join('\n\n')
+    try {
+      const { edits } = await getJobResumeEdits(application.id, userContext || undefined)
       const decisions: Record<string, Decision> = {}
       edits.forEach((e) => { decisions[e.id] = 'pending' })
       setPhase({ type: 'reviewing', edits, decisions })
@@ -130,13 +148,18 @@ export default function JobResumeEditorPanel({ application, resumes, onVersionSa
               </button>
             </>
           )}
-          <button
-            onClick={handleAnalyze}
-            disabled={phase.type === 'loading' || phase.type === 'saving'}
-            className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded transition-colors"
-          >
-            {phase.type === 'loading' ? 'Analyzing…' : phase.type === 'reviewing' ? 'Re-analyze' : 'Analyze Resume'}
-          </button>
+          {phase.type !== 'questioning' && (
+            <button
+              onClick={handleAnalyze}
+              disabled={phase.type === 'loading_questions' || phase.type === 'loading_analysis' || phase.type === 'saving'}
+              className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded transition-colors"
+            >
+              {phase.type === 'loading_questions' ? 'Loading…'
+                : phase.type === 'loading_analysis' ? 'Analyzing…'
+                : phase.type === 'reviewing' ? 'Re-analyze'
+                : 'Analyze Resume'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -149,9 +172,56 @@ export default function JobResumeEditorPanel({ application, resumes, onVersionSa
         </div>
       )}
 
-      {phase.type === 'loading' && (
+      {phase.type === 'loading_questions' && (
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-indigo-400 text-sm animate-pulse">Generating clarifying questions…</span>
+        </div>
+      )}
+
+      {phase.type === 'loading_analysis' && (
         <div className="flex-1 flex items-center justify-center">
           <span className="text-indigo-400 text-sm animate-pulse">Analyzing resume against job description…</span>
+        </div>
+      )}
+
+      {phase.type === 'questioning' && (
+        <div className="flex-1 overflow-y-auto flex flex-col gap-4 p-4">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Answer any of the questions below to give the AI verified details about your experience.
+            Your answers will be used as facts — unanswered questions are simply skipped.
+          </p>
+          {phase.questions.map((q, idx) => (
+            <div key={q.id} className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-gray-200">
+                {idx + 1}. {q.question}
+              </label>
+              <p className="text-[11px] text-gray-500 italic">{q.context}</p>
+              <textarea
+                rows={2}
+                value={phase.answers[q.id] ?? ''}
+                onChange={(e) => {
+                  if (phase.type !== 'questioning') return
+                  setPhase({ ...phase, answers: { ...phase.answers, [q.id]: e.target.value } })
+                }}
+                placeholder="Your answer (optional — leave blank to skip)"
+                className="bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 resize-none"
+              />
+            </div>
+          ))}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => handleContinueWithAnswers(phase.questions, phase.answers)}
+              className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded transition-colors"
+            >
+              Continue to Analysis
+            </button>
+            <button
+              onClick={() => setPhase({ type: 'idle' })}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 

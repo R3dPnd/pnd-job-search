@@ -90,6 +90,7 @@ func NewRouter(db *pgxpool.Pool, ai *services.AIService, cfg *config.Config) htt
 			r.Post("/answer-feedback", app.AnswerFeedback)
 			r.Post("/generate-cover-letter", app.GenerateCoverLetter)
 			r.Post("/job-resume-edits", app.JobResumeEdits)
+			r.Post("/clarifying-questions", app.ClarifyingQuestions)
 		})
 	})
 

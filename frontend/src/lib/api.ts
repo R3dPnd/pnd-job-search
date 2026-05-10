@@ -11,6 +11,7 @@ import type {
   ResumeReviewResult,
   CompareResult,
   StageHistoryEntry,
+  ClarifyingQuestion,
 } from '../types'
 
 const BASE = '/api/v1'
@@ -190,11 +191,18 @@ export const compareResumeToApplication = (appId: string, resumeId: string) =>
 export const getAnswerFeedback = (answerId: string) =>
   post<InterviewAnswer>('/ai/answer-feedback', { answer_id: answerId })
 
-export const getJobResumeEdits = (applicationId: string) =>
-  post<{ edits: ResumeEdit[] }>('/ai/job-resume-edits', { application_id: applicationId })
+export const getClarifyingQuestions = (applicationId: string) =>
+  post<{ questions: ClarifyingQuestion[] }>('/ai/clarifying-questions', { application_id: applicationId })
 
-export const generateCoverLetter = (applicationId: string, companyInfo?: string) =>
+export const getJobResumeEdits = (applicationId: string, userContext?: string) =>
+  post<{ edits: ResumeEdit[] }>('/ai/job-resume-edits', {
+    application_id: applicationId,
+    user_context: userContext ?? '',
+  })
+
+export const generateCoverLetter = (applicationId: string, companyInfo?: string, userContext?: string) =>
   post<{ cover_letter: string }>('/ai/generate-cover-letter', {
     application_id: applicationId,
     company_info: companyInfo ?? '',
+    user_context: userContext ?? '',
   })
