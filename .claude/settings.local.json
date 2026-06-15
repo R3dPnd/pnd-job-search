@@ -26,7 +26,17 @@
       "Bash(xargs grep *)",
       "Bash(xargs ls *)",
       "Bash(npm list *)",
-      "Bash(go vet *)"
+      "Bash(go vet *)",
+      "PowerShell(docker compose *)",
+      "Bash(tasklist)",
+      "Bash(findstr \"go run\")",
+      "PowerShell(Stop-Job *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(powershell *)",
+      "Bash(DATABASE_URL=\"postgres://postgres:postgres@localhost:5432/job_search\" ./migrate up)",
+      "Bash(make migrate *)",
+      "Bash(./migrate up *)",
+      "PowerShell($env:DATABASE_URL = \"postgres://postgres:postgres@localhost:5432/job_search\"; Set-Location \"C:\\\\Git\\\\pnd\\\\pnd-job-search\\\\backend\"; $result = & \".\\\\migrate.exe\" up 2>&1; Write-Output $result)"
     ]
   }
 }

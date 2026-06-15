@@ -10,6 +10,10 @@ CREATE TABLE job_applications (
     current_stage_id UUID,
     date_applied     TEXT,
     status           TEXT NOT NULL DEFAULT 'active',
+    resume_id        UUID,
+    cover_letter     TEXT,
+    fit_result       JSONB,
+    fit_analyzed_at  TIMESTAMPTZ,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
